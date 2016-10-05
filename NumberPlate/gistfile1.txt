@@ -1,0 +1,225 @@
+#!/bin/bash
+
+# STATUS A/O 2016 02 13: tested, works
+
+# based on https://barclaysapps.wordpress.com/2014/07/06/openalpr-install-for-rpi-and-udoo-and-tre-and-yun/ ,
+# http://lukagabric.com/raspberry-pi-license-plate-recognition/, and updated for new packages.
+# there are other random notes and googled pages that also informed this tutorial whihc may not be specifically referenced.
+#This is not optimized for space or whatever, but does work. well, not as of 2016 01 03 but working to fix that)
+# discussion is at https://groups.google.com/forum/#!topic/openalpr/-vckIsPe618: please contribute if you can, and ask questions if you # # have them
+# thanks to Timis for tips and hints...
+
+# how to read:
+
+# this is a heading, as denoted by the:
+# on a line where you see some text -> some more text
+# this is the text in the original tutorial -> this is what you should type instead
+# note: this is a note: don't type this.
+# if you see a line like this ; or // anything after the ';' or the '//' including the ';'  or '//' is a note and should not be typed
+
+# installed and tested on a raspberry pi 2 model B 1GB using raspbian installed via noobs on a 32 GB memory card.
+# note that an 8GB card will fill before this tutorial ends, so you will need a card bigger than that.
+# Not tested on a 16GB card so no idea if that will work or not.
+
+# Alternatively you can do the whole thing without using noobs following these steps:
+# tested using a mac: your mileage on other systems may vary
+# insert the memory card into a reader and plug into your computer usb port
+# diskutil list
+# diskutil unmountDisk /dev/disk3
+# sudo dd bs=1m if=/Users/malcolm/Desktop/2016-02-09-raspbian-jessie.img of=/dev/rdisk3
+
+# then remove fronm the reader, plug the card into the raspberry pi and connect it to your laptop using a usb power cord and an ethernet cable.
+# be sure to be sharing internet access on the mac for this to work
+
+# ping raspberrypi.local
+# ssh pi@<ipaddfress>
+# pw: raspberry
+
+# sudo raspi-config
+# expand the memory card in the menu items
+# enable camera support in the menu items
+# reboot
+
+
+# download this tutorial:
+# wget https://gist.github.com/amstanley/9da7febc9a3e3c2228ee/archive/7d19810e396619736105cb8a0ec4789567313c19.zip
+# unzip the resulting file, which should give you a doirectory with a file called gistfile1.txt inside it
+# cd to the directory and make gistfile1.txt executable (chmod +x filename) so it can run as a script and then run it. 
+# when it is done resume manual entry
+
+# Create a log file of the build as well as displaying the build on the tty as it runs
+exec > >(tee build_alpr_pi.log)
+exec 2>&1
+
+# Set Up the camera to stream mjpeg. to do this follow this tutorial exactly:
+# http://www.linux-projects.org/modules/sections/index.php?op=viewarticle&artid=14
+# the steps are: 
+
+curl http://www.linux-projects.org/listing/uv4l_repo/lrkey.asc | sudo apt-key add -
+
+# Add the following line to the file /etc/apt/sources.list (type sudo nano /etc/apt/sources.list) :
+sudo -- sh -c "echo deb http://www.linux-projects.org/listing/uv4l_repo/raspbian/ wheezy main >> /etc/apt/sources.list"
+ 
+# Update and Upgrade the Pi, otherwise the build may fail due to inconsistencies
+sudo apt-get update && sudo apt-get upgrade -y --force-yes
+
+# Get the required libraries
+sudo apt-get install -y --force-yes autoconf build-essential automake libtool  git cmake pkg-config      \
+                                    libpng12-dev libjpeg-dev libtiff5-dev zlib1g-dev libjasper-dev       \
+                                    libavcodec-dev libavformat-dev libswscale-dev libv4l-dev             \
+                                    libxvidcore-dev libx264-dev libgtk2.0-dev libatlas-base-dev          \
+                                    gfortran python2.7-dev python3-dev                                   \
+                                    libcurl4-openssl-dev liblog4cplus-1.0-4 liblog4cplus-dev uuid-dev    \
+                                    uv4l uv4l-raspicam uv4l-raspicam-extras uv4l-server uv4l-mjpegstream
+
+# Clone openalpr:
+cd /home/pi 
+git clone https://github.com/openalpr/openalpr.git
+
+# Create a directory and download libraries:
+cd openalpr
+mkdir libraries
+cd libraries
+
+git clone https://github.com/tesseract-ocr/tesseract.git
+git clone https://github.com/tesseract-ocr/tessdata.git
+wget http://www.leptonica.org/source/leptonica-1.71.tar.gz
+# wget http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.11/opencv-2.4.11.zip 
+# wget http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.9/opencv-2.4.9.zip # trying alternate versions  as 2.4.11 fails to compile with ffmpeg.
+wget -O opencv.zip https://github.com/Itseez/opencv/archive/3.1.0.zip
+wget -O opencv_contrib.zip https://github.com/Itseez/opencv_contrib/archive/3.1.0.zip
+
+
+# extract the packages:
+tar -zxvf leptonica-1.71.tar.gz
+# unzip opencv-2.4.9.zip
+unzip opencv.zip
+unzip opencv_contrib.zip
+
+# clean up the downloads
+rm leptonica-1.71.tar.gz
+# rm opencv-2.4.9.zip
+rm opencv.zip
+rm opencv_contrib.zip
+
+# compile leptonica:
+cd leptonica-1.71
+./configure
+make -j4                
+sudo make install
+
+# compile tesseract:
+cd ../tesseract
+sudo apt-get install -y --force-yes autoconf automake libtool
+./autogen.sh   # script crapped here, missing aclocal. ran sudo apt-get install -y --force-yes autoconf automake libtool, seemed to fix it.
+./configure
+make -j4
+sudo make install
+sudo ldconfig
+export TESSDATA_PREFIX=/home/pi/openalpr/libraries/tessdata
+
+# installing openCV 3 with Python 2.7
+# see http://www.pyimagesearch.com/2015/10/26/how-to-install-opencv-3-on-raspbian-jessie/ 
+# as referenced by timis at  https://groups.google.com/d/topic/openalpr/-vckIsPe618
+
+wget https://bootstrap.pypa.io/get-pip.py
+sudo python get-pip.py
+sudo pip install virtualenv virtualenvwrapper
+sudo rm -rf ~/.cache/pip
+echo 'export WORKON_HOME=$HOME/.virtualenvs' >> ~/.profile
+echo 'source /usr/local/bin/virtualenvwrapper.sh' >> ~/.profile
+source ~/.profile
+mkvirtualenv cv
+source ~/.profile
+workon cv
+pip install numpy
+
+cd /home/pi/openalpr/libraries/opencv-3.1.0
+mkdir build
+cd build
+cmake -D CMAKE_BUILD_TYPE=RELEASE \
+	-D CMAKE_INSTALL_PREFIX=/usr/local \
+	-D INSTALL_C_EXAMPLES=OFF \
+	-D INSTALL_PYTHON_EXAMPLES=ON \
+	-D OPENCV_EXTRA_MODULES_PATH=/home/pi/openalpr/libraries/opencv_contrib-3.1.0/modules \
+	-D BUILD_EXAMPLES=ON ..
+make -j4
+sudo make install
+sudo ldconfig
+cd ~/.virtualenvs/cv/lib/python2.7/site-packages/
+ln -s /usr/local/lib/python2.7/site-packages/cv2.so cv2.so
+
+# Compile openALPR:
+cd /home/pi/openalpr/src
+
+# nano CMakeLists.txt
+# add the following lines in the section near the top that has SET() statements
+# SET(OpenCV_DIR "/home/pi/openalpr/libraries/opencv-2.4.11/release")
+# SET(Tesseract_DIR "/home/pi/openalpr/libraries/tesseract")
+# do this using sed
+sed -i '11 i SET(Tesseract_DIR "/home/pi/openalpr/libraries/tesseract")' /home/pi/openalpr/src/CMakeLists.txt
+sed -i '11 i SET(OpenCV_DIR "~/openalpr/libraries/opencv-3.1.0/build")' /home/pi/openalpr/src/CMakeLists.txt 
+
+cmake ./
+make -j4
+sudo make install
+sudo cp -r /usr/local/lib/* /lib 
+# sudo cp /home/pi/openalpr/libraries/opencv-2.4.11/release/lib/* /lib
+# note: seems like this last step is just a path issue... surely better way to do this)
+
+# test the library (from https://github.com/openalpr/openalpr/wiki/Compilation-instructions-(Ubuntu-Linux)):
+wget http://plates.openalpr.com/ea7the.jpg
+alpr -c us ea7the.jpg
+
+# result: 
+# plate0: 10 results
+#    - EA7THE	 confidence: 92.4795
+#    - EA7TBE	 confidence: 84.0421
+#    - EA7TRE	 confidence: 83.1932
+#    - EA7TE	 confidence: 82.0527
+#    - EA7T8E	 confidence: 81.7845
+#    - EA7TME	 confidence: 80.8062
+#    - EA7THB	 confidence: 76.6468
+#    - EA7TH6	 confidence: 76.6153
+#    - EA7TH	 confidence: 75.2232
+#    - EA7TBB	 confidence: 68.2095
+
+# wget http://plates.openalpr.com/h786poj.jpg
+# alpr -c eu h786poj.jpg
+
+#edit the alprd daemon config:
+# cd /etc/openalpr
+# sudo nano alprd.conf
+
+# below the line that says '[daemon]' add or edit the foloowing lines to look like this:
+
+# ; country determines the training dataset used for recognizing plates. Valid values are us, eu
+# country = us
+
+#; text name identifier for this location
+# site_id = raspberry_pi
+
+#; Declare each stream on a separate line
+#; each unique stream should be defined as stream = [url]
+
+#stream = http://127.0.0.1:8080/stream/video.mjpeg
+#;stream = http://127.0.0.1/example_second_stream.mjpeg
+#;stream = webcam
+
+#; topn is the number of possible plate character variations to report
+#topn = 10
+
+#; Determines whether images that contain plates should be stored to disk
+#store_plates = 0
+#store_plates_location = /var/lib/openalpr/plateimages/
+#
+#; upload address is the destination to POST to
+#upload_data = 0
+#upload_address = http://localhost:9000/push/
+
+#Save the file, exit, and type:
+# sudo service uv4l_raspicam restart
+# alprd -f 
+# and see if the daemon connects to the stream.
+
+
