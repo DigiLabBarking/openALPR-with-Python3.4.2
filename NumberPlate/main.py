@@ -7,22 +7,49 @@ v0.1
 from os import remove
 from time import strftime,process_time,sleep
 from openalpr import Alpr
+import picamera
+camera = picamera.PiCamera()
+camera.hflip = True
+camera.vflip = True
 #functions
 def motionDetect(): #motion sensor detection
-    return True
-def createFilename(): #filename generator
-    global filenameTEST,filename
-    filename = str(strftime('%H:%M:%S %d/%m/%Y'))
-    filepath = ('Plates/'+str(strftime('%H.%M.%S_%d.%m.%Y'))+'.jpg')
-    filenameTEST = ('Plates/notPlate.jpg') ###
-    return True
-def takePhoto(): #taking a picture
-    return True
-def openALPR(): #reading the picture
-    alpr = None
     try:
-        alpr = Alpr('gb','/etc/openalpr/openalpr.conf','/home/pi/openalpr/runtime_data')
+        while True:
+            print('Movement Detected')
+            fileName()
+            takePhoto()
+            if openALPR():
+                upload()
+            else:
+                print('image not a number plate')
+            sleep(2)
+    except KeyboardInterrupt:
+        print('Keyboard Interrpt')
+        return True
 
+def fileName():
+    print('STARTED: filename')
+    global filepath,filename
+    filename = str(strftime('%H %M %S %d %m %Y'))
+    filepath = ('Plates/'+filename+'.jpg')
+    print('FINISHED: filename')
+    return True
+
+def takePhoto(): #taking a picture
+    print('STARTED: taking picture')
+    camera.start_preview()
+    sleep(1)
+    camera.stop_preview()
+    camera.capture(filepath)
+    print('FINISHED: taking picrure')
+    return True
+
+def openALPR(): #reading the picture
+    print('STARTED: ALPR')
+    try:
+        global database
+        alpr = None
+        alpr = Alpr('gb','/etc/openalpr/openalpr.conf','/home/pi/openalpr/runtime_data')
         if not alpr.is_loaded():
             print("Error loading OpenALPR")
             return False
@@ -31,7 +58,7 @@ def openALPR(): #reading the picture
             alpr.set_top_n(7)
             alpr.set_default_region("gb")
             alpr.set_detect_region(False)
-            jpeg_bytes = open('Plates/Plate.jpg', "rb").read() ###
+            jpeg_bytes = open(filepath, "rb").read()
             results = alpr.recognize_array(jpeg_bytes)
             i = 0
             for plate in results['results']:
@@ -40,14 +67,17 @@ def openALPR(): #reading the picture
                     plate = [candidate['plate'],candidate['confidence']]
                     database.append(plate)
             if database == []:
-                remove('Plates/Plate.jpg') ###
+                remove(filepath)
+                print('FINISHED: ALPR unsucessful')
                 return False
-            print(database)
-    finally:
-        if alpr:
-            alpr.unload()
-            return True
+            else :
+                print(database)
+                print('FINISHED: ALPR sucessful')
+                return True
+    except AttributeError:
+        print()
 def upload(): #upload to database
+    print('STARTED: upload')
     file = open('Database.txt','a')
     file.write(filename+'\n')
     for x in database:
@@ -55,7 +85,9 @@ def upload(): #upload to database
         file.write(str(y))
     file.write('\n')
     file.close()
+    print('FINISHED: upload')
     return True
+
 def timeElapsed(): #time elapased
     global started
     finished = strftime('%H %M %S %d %m %Y')
@@ -83,10 +115,10 @@ def timeElapsed(): #time elapased
             elif counter == 3:
                 if strftime('%m') == 1:
                     timer[counter] += 31
-                elif strftime('%m') == 2: #Febuary
-                    if int(strftime('%Y')) % 4 == 0: #Divisable by 4
-                        if int(strftime('%Y')) % 100 == 0: #Divisable by 100
-                            if int(strftime('%Y')) % 400 == 0: #Divisable by 400
+                elif strftime('%m') == 2:
+                    if int(strftime('%Y')) % 4 == 0:
+                        if int(strftime('%Y')) % 100 == 0:
+                            if int(strftime('%Y')) % 400 == 0:
                                 timer[counter] += 29
                             else:
                                 timer[counter] += 28
@@ -120,8 +152,9 @@ def timeElapsed(): #time elapased
                 sen = sen+str(timer[counter])+x[counter]        
     print(sen)
 #maim
-print('STARTED:number plate recognition')
-started = strftime('%H %M %S %d %M %Y')
+print("STARTED:number plate recognition\nPress 'Ctrl + C' to stop script")
+started = strftime('%H %M %S %d %m %Y')
+motionDetect()
 #end
 timeElapsed()
 print('FINISHED:number plate recognition')
