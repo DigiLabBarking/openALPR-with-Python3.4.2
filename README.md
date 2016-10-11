@@ -3,9 +3,7 @@ Reading number plates with python
 
 Requirments:
 raspberry pi camera module - https://www.raspberrypi.org/products/camera-module-v2/
-
 openALPR:https://groups.google.com/forum/#!topic/openalpr/-vckIsPe618
-
 ownCloud:https://samhobbs.co.uk/2013/10/install-owncloud-on-your-raspberry-pi
 
 Running:
