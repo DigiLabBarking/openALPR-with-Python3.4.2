@@ -1,23 +1,28 @@
 """
 number plate reader using openALPR
 by AfterPartyLion for DigiLab
-v0.1
+v0.5
+openALPR: https://groups.google.com/forum/#!topic/openalpr/-vckIsPe618
+ownCloud: https://samhobbs.co.uk/2013/10/install-owncloud-on-your-raspberry-pi
+run this as a root: sudo python main.py to be able to upload the data to the ownCloud server
 """
 #imports
 from os import remove
 from time import strftime,process_time,sleep
 from openalpr import Alpr
+"""
 import picamera
 camera = picamera.PiCamera()
-camera.hflip = True
-camera.vflip = True
+#camera.hflip = True
+#camera.vflip = True
+"""
 #functions
-def motionDetect(): #motion sensor detection
+def motionDetect(): #motion sensor detection *needs working on
     try:
         while True:
             print('Movement Detected')
             fileName()
-            takePhoto()
+            #takePhoto()
             if openALPR():
                 upload()
             else:
@@ -30,8 +35,8 @@ def motionDetect(): #motion sensor detection
 def fileName():
     print('STARTED: filename')
     global filepath,filename
-    filename = str(strftime('%H %M %S %d %m %Y'))
-    filepath = ('Plates/'+filename+'.jpg')
+    filename = strftime('%H:%M:%S %d/%m/%Y')
+    filepath = ('Plates/'+strftime('%H %M %S %d %m %Y')+'.jpg')
     print('FINISHED: filename')
     return True
 
@@ -58,7 +63,7 @@ def openALPR(): #reading the picture
             alpr.set_top_n(7)
             alpr.set_default_region("gb")
             alpr.set_detect_region(False)
-            jpeg_bytes = open(filepath, "rb").read()
+            jpeg_bytes = open('Plates/Plate.jpg', "rb").read() #testing
             results = alpr.recognize_array(jpeg_bytes)
             i = 0
             for plate in results['results']:
@@ -78,7 +83,7 @@ def openALPR(): #reading the picture
         print()
 def upload(): #upload to database
     print('STARTED: upload')
-    file = open('Database.txt','a')
+    file = open('/home/pi/Desktop/NumberPlate/ownCloudData/digilab123/files/Database.txt','a') #you have to make a blank file on ownCloud and then use its location
     file.write(filename+'\n')
     for x in database:
         y = [x[0],x[1]]
@@ -88,7 +93,7 @@ def upload(): #upload to database
     print('FINISHED: upload')
     return True
 
-def timeElapsed(): #time elapased
+def timeElapsed(): #time elapased *not necessary but why not
     global started
     finished = strftime('%H %M %S %d %m %Y')
     finished = finished.split(' ')
@@ -151,7 +156,7 @@ def timeElapsed(): #time elapased
                 timer[counter] += 12
                 sen = sen+str(timer[counter])+x[counter]        
     print(sen)
-#maim
+#main
 print("STARTED:number plate recognition\nPress 'Ctrl + C' to stop script")
 started = strftime('%H %M %S %d %m %Y')
 motionDetect()
