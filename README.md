@@ -9,4 +9,4 @@ ownCloud:https://samhobbs.co.uk/2013/10/install-owncloud-on-your-raspberry-pi
 
 Running:
 open main.py using 'sudo python3.4 main.py' and it should start taking pictures every few seconds (I'll add in a motion sensor so that it'll only take pictures once movement has been detected) to look for number plates
-if it picks up a number plate, it will save the date and the number plate in Database.txt
+if it picks up a number plate, it will save the date and the number plate in Database.txt so that it could be accesed from ownCloud
